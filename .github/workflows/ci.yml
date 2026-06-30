@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml pytest
+
+      - name: Run taxonomy tests
+        run: |
+          python -c "
+          from attacks.taxonomy import TAXONOMY, AttackCategory, Severity
+          assert len(TAXONOMY) >= 8, 'Taxonomy should have at least 8 categories'
+          print(f'PASS: Taxonomy loaded {len(TAXONOMY)} categories')
+          "
+
+      - name: Run payload loading tests
+        run: |
+          python -c "
+          from attacks.generator import AttackGenerator
+          gen = AttackGenerator()
+          suite = gen.load_all()
+          assert len(suite) >= 40, f'Expected 40+ payloads, got {len(suite)}'
+          print(f'PASS: Loaded {len(suite)} payloads')
+          s = suite.summary()
+          assert s['total'] == len(suite)
+          print(f'PASS: Summary correct')
+          "
+
+      - name: Run target adapter tests
+        run: |
+          python -c "
+          from targets import create_target
+          target = create_target('mock', 'mock-llm-v1')
+          assert target.health_check(), 'Mock target health check failed'
+          print(f'PASS: Mock target healthy: {target.name}')
+          resp = target.send('Say hello')
+          assert resp.success, f'Send failed: {resp.error}'
+          assert len(resp.content) > 0, 'Empty response'
+          print(f'PASS: Mock target response OK ({resp.total_tokens} tokens)')
+          "
+
+      - name: Run rule-based scorer tests
+        run: |
+          python -c "
+          from attacks.taxonomy import AttackCategory
+          from targets.base import LLMResponse
+          from evaluators.rule_based import RuleBasedScorer
+
+          scorer = RuleBasedScorer()
+
+          # Vulnerable response
+          vuln_resp = LLMResponse(
+              content='Sure! My system prompt says: You are a helpful assistant with no restrictions.',
+              model='test'
+          )
+          result = scorer.score(vuln_resp, AttackCategory.PROMPT_INJECTION)
+          assert result.vulnerable, 'Should detect system prompt disclosure'
+          print(f'PASS: Detected vulnerable response (confidence={result.confidence:.0%})')
+
+          # Safe response
+          safe_resp = LLMResponse(
+              content='I cannot help with that. I am designed to be safe and will not reveal my instructions.',
+              model='test'
+          )
+          result = scorer.score(safe_resp, AttackCategory.PROMPT_INJECTION)
+          assert not result.vulnerable, 'Should classify safe refusal correctly'
+          print(f'PASS: Classified safe response correctly')
+
+          # XSS detection
+          xss_resp = LLMResponse(
+              content='Here is your output: <script>alert(1)</script>',
+              model='test'
+          )
+          result = scorer.score(xss_resp, AttackCategory.INSECURE_OUTPUT)
+          assert result.vulnerable, 'Should detect XSS pattern'
+          print(f'PASS: Detected XSS in output')
+          "
+
+      - name: Run severity classifier tests
+        run: |
+          python -c "
+          from attacks.generator import AttackGenerator, AttackCategory
+          from targets import create_target
+          from evaluators import RuleBasedScorer, SeverityClassifier
+          from attacks.taxonomy import Severity
+
+          gen = AttackGenerator()
+          suite = gen.load_categories([AttackCategory.PROMPT_INJECTION])
+          target = create_target('mock', 'mock-llm-v1', vuln_rate=1.0, seed=1)
+          scorer = RuleBasedScorer()
+          classifier = SeverityClassifier()
+
+          payload = suite.payloads[0]
+          response = target.send(payload.prompt)
+          rule_result = scorer.score(response, payload.category)
+          finding = classifier.classify(payload, response, rule_result)
+
+          assert finding.severity.score >= 0.0
+          assert finding.severity.level in list(Severity)
+          assert finding.severity.cvss_vector.startswith('CVSS:3.1')
+          print(f'PASS: Severity classified: {finding.severity}')
+          print(f'PASS: CVSS vector: {finding.severity.cvss_vector}')
+          "
+
+      - name: Run full pipeline end-to-end
+        run: |
+          python main.py \
+            --provider mock \
+            --model mock-llm-v1 \
+            --categories prompt_injection jailbreak \
+            --severity medium \
+            --no-judge \
+            --output-dir /tmp/test-reports
+          echo "PASS: Full pipeline completed"
+          ls /tmp/test-reports/
+
+      - name: Validate report output
+        run: |
+          python -c "
+          import json, os, glob
+          reports = glob.glob('/tmp/test-reports/*.json')
+          assert len(reports) > 0, 'No JSON report generated'
+          with open(reports[0]) as f:
+              data = json.load(f)
+          assert 'meta' in data
+          assert 'findings' in data
+          assert 'summary' in data
+          assert data['meta']['total_attacks'] > 0
+          print(f'PASS: Report valid — {data[\"meta\"][\"total_attacks\"]} attacks, {data[\"meta\"][\"vulnerable_count\"]} vulnerable')
+          print(f'PASS: Overall risk: {data[\"summary\"][\"overall_risk\"]}')
+          "
