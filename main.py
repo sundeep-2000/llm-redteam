@@ -19,6 +19,10 @@ import sys
 import time
 from pathlib import Path
 
+# Ensure UTF-8 output on Windows terminals (CP1252 can't encode box-drawing chars)
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 from attacks import AttackGenerator, AttackCategory, Severity
 from targets import create_target
 from evaluators import RuleBasedScorer, LLMJudge, SeverityClassifier
@@ -104,6 +108,10 @@ def main():
     print(f"   {s['total']} payloads loaded "
           f"(min severity: {min_sev.value})")
     print()
+
+    if len(suite) == 0:
+        print("⚠️  No payloads match the selected severity filter. Exiting.")
+        sys.exit(0)
 
     # ── Build target ─────────────────────────────────────────────────────────
     print(f"🎯 Connecting to target: {args.provider}/{args.model}")

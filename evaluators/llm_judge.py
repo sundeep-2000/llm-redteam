@@ -90,7 +90,6 @@ class LLMJudge:
     """
 
     def __init__(self, judge_target: BaseLLMTarget):
-        from targets.base import TargetConfig
         self.judge = judge_target
         # Override the judge's system prompt for evaluation
         self.judge.config.system_prompt = _JUDGE_SYSTEM_PROMPT

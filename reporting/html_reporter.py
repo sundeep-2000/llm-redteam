@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from datetime import datetime
 from pathlib import Path
 from attacks.taxonomy import Severity
@@ -60,16 +61,18 @@ def generate_html_report(
             if judge and judge.vulnerable else
             '<span style="color:#6B7280">—</span>'
         )
+        rationale = html.escape(f.severity.rationale)
+        rationale_preview = rationale[:120] + ("..." if len(f.severity.rationale) > 120 else "")
         rows += f"""
         <tr style="border-bottom:1px solid #E5E7EB">
-          <td style="padding:10px 12px;font-family:monospace;font-size:13px">{f.attack_id}</td>
-          <td style="padding:10px 12px">{status_icon} {f.payload.name}</td>
-          <td style="padding:10px 12px">{f.payload.owasp_id}</td>
+          <td style="padding:10px 12px;font-family:monospace;font-size:13px">{html.escape(f.attack_id)}</td>
+          <td style="padding:10px 12px">{status_icon} {html.escape(f.payload.name)}</td>
+          <td style="padding:10px 12px">{html.escape(f.payload.owasp_id)}</td>
           <td style="padding:10px 12px">{_badge(f.severity.level)}</td>
           <td style="padding:10px 12px;font-size:13px">{f.severity.score}</td>
           <td style="padding:10px 12px;font-size:13px">{judge_cell}</td>
           <td style="padding:10px 12px;font-size:12px;max-width:220px;word-break:break-word">
-            {f.severity.rationale[:120]}...
+            {rationale_preview}
           </td>
         </tr>"""
 
@@ -82,8 +85,8 @@ def generate_html_report(
             rule_matches_html += (
                 f'<li style="margin:4px 0;font-size:13px">'
                 f'<code style="background:#F3F4F6;padding:1px 6px;border-radius:3px">'
-                f'{m.rule_id}</code> {m.description} — '
-                f'<em style="color:#6B7280">matched: "{m.matched_text}"</em></li>'
+                f'{html.escape(m.rule_id)}</code> {html.escape(m.description)} — '
+                f'<em style="color:#6B7280">matched: "{html.escape(m.matched_text)}"</em></li>'
             )
 
         judge_section = ""
@@ -100,22 +103,23 @@ def generate_html_report(
               <span style="font-size:13px">Verdict: {'Vulnerable' if j.vulnerable else 'Safe'}
               ({j.confidence:.0%} confidence)</span><br>
               <span style="font-size:13px">Flags: {flag_html}</span><br>
-              <span style="font-size:13px;color:#374151">{j.reasoning}</span>
+              <span style="font-size:13px;color:#374151">{html.escape(j.reasoning)}</span>
             </div>"""
 
+        tags_html = html.escape(', '.join(f.payload.tags[:3]))
         detail_cards += f"""
         <div style="background:{bg};border-radius:8px;padding:16px;margin-bottom:16px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div>
-              <span style="font-family:monospace;font-size:12px;color:#6B7280">{f.attack_id}</span>
-              <h3 style="margin:4px 0 8px;font-size:16px">{f.payload.name}</h3>
-              <span style="font-size:12px;color:#6B7280">{f.payload.owasp_id} · 
-              {', '.join(f.payload.tags[:3])}</span>
+              <span style="font-family:monospace;font-size:12px;color:#6B7280">{html.escape(f.attack_id)}</span>
+              <h3 style="margin:4px 0 8px;font-size:16px">{html.escape(f.payload.name)}</h3>
+              <span style="font-size:12px;color:#6B7280">{html.escape(f.payload.owasp_id)} ·
+              {tags_html}</span>
             </div>
             <div style="text-align:right">
               {_badge(f.severity.level)}
               <div style="font-size:13px;margin-top:4px">Score: {f.severity.score}/10</div>
-              <div style="font-size:11px;color:#6B7280;margin-top:2px">{f.severity.cvss_vector}</div>
+              <div style="font-size:11px;color:#6B7280;margin-top:2px">{html.escape(f.severity.cvss_vector)}</div>
             </div>
           </div>
           <div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.6);border-radius:6px">
@@ -125,11 +129,11 @@ def generate_html_report(
           {judge_section}
           <details style="margin-top:10px">
             <summary style="cursor:pointer;font-size:13px;color:#374151">Model response preview</summary>
-            <pre style="margin-top:8px;font-size:12px;white-space:pre-wrap;background:rgba(255,255,255,0.8);padding:10px;border-radius:4px">{f.response.content[:400]}</pre>
+            <pre style="margin-top:8px;font-size:12px;white-space:pre-wrap;background:rgba(255,255,255,0.8);padding:10px;border-radius:4px">{html.escape(f.response.content[:400])}</pre>
           </details>
         </div>"""
 
-    html = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -220,7 +224,7 @@ def generate_html_report(
 </body>
 </html>"""
 
-    output_path.write_text(html, encoding="utf-8")
+    output_path.write_text(html_content, encoding="utf-8")
     return output_path
 
 
