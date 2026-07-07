@@ -196,7 +196,8 @@ def main():
     print(f"📊 JSON report: {json_path}")
     print()
 
-    return 0 if not vuln else 1
+    # Exit codes: 0 = clean, 1 = setup/runtime failure, 2 = vulnerabilities found
+    return 0 if not vuln else 2
 
 
 if __name__ == "__main__":
