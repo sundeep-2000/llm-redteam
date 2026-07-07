@@ -196,8 +196,8 @@ def main():
     print(f"📊 JSON report: {json_path}")
     print()
 
-    # Exit codes: 0 = clean, 1 = setup/runtime failure, 2 = vulnerabilities found
-    return 0 if not vuln else 2
+    # Exit codes: 0 = clean, 1 = setup/runtime failure, 2 = argparse usage error, 3 = vulnerabilities found
+    return 0 if not vuln else 3
 
 
 if __name__ == "__main__":

@@ -125,6 +125,7 @@ jobs:
 
       - name: Run full pipeline end-to-end
         run: |
+          set +e
           python main.py \
             --provider mock \
             --model mock-llm-v1 \
@@ -133,8 +134,9 @@ jobs:
             --no-judge \
             --output-dir /tmp/test-reports
           code=$?
-          # exit 2 means the pipeline ran fine and found vulnerabilities (expected with the mock target)
-          if [ $code -ne 0 ] && [ $code -ne 2 ]; then
+          set -e
+          # exit 3 means the pipeline ran fine and found vulnerabilities (expected with the mock target)
+          if [ $code -ne 0 ] && [ $code -ne 3 ]; then
             echo "FAIL: pipeline exited with unexpected code $code"
             exit $code
           fi
