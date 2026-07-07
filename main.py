@@ -142,7 +142,7 @@ def main():
         judge_model = args.judge_model or args.model
         print(f"⚖️  Setting up LLM judge: {judge_provider}/{judge_model}")
         try:
-            judge_target = create_target(judge_provider, judge_model)
+            judge_target = create_target(judge_provider, judge_model, judge=True)
             judge = LLMJudge(judge_target)
             print("   ✅ Judge ready")
         except Exception as e:
